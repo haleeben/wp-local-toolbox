@@ -5,7 +5,7 @@
  * Description: Uses local media when it's available, and uses the production server for rest.
  * Author:      Bill Erickson
  * Author URI:  http://www.billerickson.net
- * Version:     1.2.0
+ * Version:     1.3.0
  * Text Domain: be-media-from-production
  * Domain Path: languages
  *
@@ -54,23 +54,23 @@ class BE_Media_From_Production {
 	 * @var array
 	 */
 	public $directories = array();
-	
+
 	/**
 	 * Start Month
-	 * 
+	 *
 	 * @since 1.0.0
 	 * @var int
 	 */
 	public $start_month = false;
-	
+
 	/**
-	 * Start Year 
+	 * Start Year
 	 *
 	 * @since 1.0.0
 	 * @var int
 	 */
 	public $start_year = false;
-	
+
 	/**
 	 * Primary constructor.
 	 *
@@ -80,24 +80,25 @@ class BE_Media_From_Production {
 
 		// Set upload directories
 		add_action( 'init',                               array( $this, 'set_upload_directories' )     );
-		
+
 		// Update Image URLs
 		add_filter( 'wp_get_attachment_image_src',        array( $this, 'image_src'              )     );
 		add_filter( 'wp_get_attachment_image_attributes', array( $this, 'image_attr'             ), 99 );
+		add_filter( 'wp_prepare_attachment_for_js',       array( $this, 'image_js'               ), 10, 3 );
 		add_filter( 'the_content',                        array( $this, 'image_content'          )     );
-		
+
 	}
-	
+
 	/**
 	 * Set upload directories
 	 *
 	 * @since 1.0.0
 	 */
 	function set_upload_directories() {
-		
+
 		if( empty( $this->directories ) )
 			$this->directories = $this->get_upload_directories();
-		
+
 	}
 
 	/**
@@ -106,11 +107,11 @@ class BE_Media_From_Production {
 	 * @since 1.0.0
 	 */
 	function get_upload_directories() {
-	
+
 		// Include all upload directories starting from a specific month and year
 		$month = str_pad( apply_filters( 'be_media_from_production_start_month', $this->start_month ), 2, 0, STR_PAD_LEFT );
 		$year = apply_filters( 'be_media_from_production_start_year', $this->start_year );
-	
+
 		$upload_dirs = array();
 
 		if( $month && $year ) {
@@ -124,9 +125,9 @@ class BE_Media_From_Production {
 				$month = str_pad( $month, 2, 0, STR_PAD_LEFT );
 			}
 		}
-		
+
 		return apply_filters( 'be_media_from_production_directories', $upload_dirs );
-			
+
 	}
 
 	/**
@@ -137,13 +138,13 @@ class BE_Media_From_Production {
 	 * @return array $image
 	 */
 	function image_src( $image ) {
-	
+
 		if( isset( $image[0] ) )
 			$image[0] = $this->update_image_url( $image[0] );
 		return $image;
-				
+
 	}
-	
+
 	/**
 	 * Modify Image Attributes
 	 *
@@ -152,13 +153,35 @@ class BE_Media_From_Production {
 	 * @return array $attr
 	 */
 	function image_attr( $attr ) {
-		
+
 		if( isset( $attr['srcset'] ) )
 			$attr['srcset'] = $this->update_image_url( $attr['srcset'] );
 		return $attr;
 
 	}
-	
+
+	/**
+	 * Modify Image for Javascript
+	 * Primarily used for media library
+	 *
+	 * @since 1.3.0
+	 * @param array      $response   Array of prepared attachment data
+	 * @param int|object $attachment Attachment ID or object
+	 * @param array      $meta       Array of attachment metadata
+	 * @return array     $response   Modified attachment data
+	 */
+	function image_js( $response, $attachment, $meta ) {
+
+		if( isset( $response['url'] ) )
+			$response['url'] = $this->update_image_url( $response['url'] );
+
+		foreach( $response['sizes'] as &$size ) {
+			$size['url'] = $this->update_image_url( $size['url'] );
+		}
+
+		return $response;
+	}
+
 	/**
 	 * Modify Images in Content
 	 *
@@ -189,28 +212,28 @@ class BE_Media_From_Production {
 
 		if( ! $image_url )
 			return $image_url;
-		
+
 		$production_url = esc_url( apply_filters( 'be_media_from_production_url', $this->production_url ) );
 		if( empty( $production_url ) )
 			return $image_url;
-	
+
 		$exists = false;
 		$upload_dirs = $this->directories;
-		if( $upload_dirs ) {		
+		if( $upload_dirs ) {
 			foreach( $upload_dirs as $option ) {
 				if( strpos( $image_url, $option ) ) {
 					$exists = true;
 				}
 			}
 		}
-				
+
 		if( ! $exists ) {
 			$image_url = str_replace( home_url(), $production_url, $image_url );
 		}
-			
+
 		return $image_url;
 	}
-	
+
 }
 
 new BE_Media_From_Production;
